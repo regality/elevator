@@ -12,35 +12,33 @@ class ElevatorController {
         this.queue.push({ from_floor: from_floor, to_floor: to_floor });
     }
 
-    tick() {
-        // first, decide on the action of each elevator
-        // this is done by looping through the queue and looking at any requests that are not being serviced
-        //      elevator actions include: start, move up, move down, stop, open doors, close doors, maintenance mode, maintained
-        //      if an elevator is in progress, then don't stop it unless a request comes in that is on it's current path
-        //
+    assign_requests() {
         this.queue.forEach((request) => {
             var best_elevator = null;
-            // find stopped elevator on current floor
+            // ignore elevators that are marked for maintenance
             var elevators = this.elevators.filter(elevator => !elevator.in_maintenance);
 
+            // if there is a stopped elevator on the from floor, use that one
             elevators.forEach(elevator => {
                 if (elevator.direction == 0 && elevator.current_floor == request.from_floor) {
                     best_elevator = elevator;
                 }
             });
+
+            // if there is an elevator moving that will pass the from floor and is moving in the right direction, use that one
             if (!best_elevator) {
+                var request_dir = request.to_floor > request.from_floor ? 1 : -1;
                 elevators.forEach(elevator => {
-                    if (elevator.direction != 0 &&
-                        elevator.requests.length &&
-                        (
-                            (elevator.direction ==  1 && elevator.current_floor < request.from_floor && elevator.requests[0].to_floor >= request.from_floor) ||
-                            (elevator.direction == -1 && elevator.current_floor > request.from_floor && elevator.requests[0].to_floor <= request.from_floor)
-                        )
+                    if (
+                        (request_dir ==  1 && elevator.direction ==  1 && elevator.current_floor < request.from_floor && elevator.requests[0].to_floor >= request.from_floor) ||
+                        (request_dir == -1 && elevator.direction == -1 && elevator.current_floor > request.from_floor && elevator.requests[0].to_floor <= request.from_floor)
                     ) {
                         best_elevator = elevator;
                     }
                 });
             }
+
+            // otherwise, just pick the elevator that is closest and not in use
             if (!best_elevator) {
                 elevators.forEach(elevator => {
                     if (elevator.direction != 0) return;
@@ -50,14 +48,20 @@ class ElevatorController {
                     }
                 });
             }
+
+            // if an elevator matched, then dispatch it!
             if (best_elevator) {
                 best_elevator.dispatch(request);
                 request.assigned = true;
             }
         });
 
+        // remove requests from queue that were assigned out
         this.queue = this.queue.filter(request => !request.assigned);
+    }
 
+    tick() {
+        this.assign_requests();
         this.elevators.forEach(elevator => {
             elevator.tick();
         });
@@ -93,6 +97,9 @@ class Elevator {
         return this.requests.some(request => request.picked_up);
     }
 
+    // an elevator can perform 1 action per tick
+    // elevator actions include: start, move up, move down, stop, open doors, close doors, or be serviced
+    // passengers getting on or off do not count as an action, and will happen whenever the doors are open
     tick() {
         // if we have no requests assigned, and we need to service the elevator, don't do anything
         if (!this.requests.length && this.in_maintenance > 0) {
@@ -168,10 +175,12 @@ class Elevator {
     }
 }
 
-var controller = new ElevatorController(10, 3);
-for (var i = 0; i < 200; ++i) {
-    controller.request(3, 5);
-    controller.request(4, 6);
+var controller = new ElevatorController(10, 2);
+controller.request(2, 8);
+controller.tick();
+controller.request(6, 4);
+controller.request(4, 6);
+for (var i = 0; i < 20; ++i) {
     console.log('');
     controller.tick();
 }

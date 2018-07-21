@@ -174,13 +174,3 @@ class Elevator {
         console.log('elevator-' + this.id + ' at ' + this.current_floor + ': ' + msg);
     }
 }
-
-var controller = new ElevatorController(10, 2);
-controller.request(2, 8);
-controller.tick();
-controller.request(6, 4);
-controller.request(4, 6);
-for (var i = 0; i < 20; ++i) {
-    console.log('');
-    controller.tick();
-}

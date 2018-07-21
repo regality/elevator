@@ -75,41 +75,58 @@ class Elevator {
     }
 
     tick() {
+        // if not moving and not occupied and at from_floor, open doors + become occupied
+        if (this.direction == 0 && !this.occupied && this.requests.length && this.current_floor == this.requests[0].from_floor) {
+            this.door_open = 1;
+            this.occupied = 1;
+            this.log('pick up passengers at ' + this.current_floor);
+
+        // if not moving and occupied and at to_floor, open doors + become unoccupied
+        } else if (this.direction == 0 && this.occupied && this.current_floor == this.requests[0].to_floor) {
+            this.door_open = 1;
+            this.occupied = 0;
+            this.log('drop off passengers at ' + this.current_floor);
+            this.requests.shift();
+
         // if not moving and target floor, start
-        if (this.direction == 0 && this.requests.length) {
+        } else if (this.direction == 0 && this.requests.length) {
             var request = this.requests[0];
-            if (request.from_floor > this.current_floor) {
+            var target_floor = this.occupied ? this.requests[0].to_floor : this.requests[0].from_floor;
+            if (target_floor > this.current_floor) {
                 this.direction = 1;
+                this.log('start moving up')
             } else {
                 this.direction = -1;
+                this.log('start moving down')
             }
 
         // if moving and reached target floor, stop
-        } else if (this.direction != 0 && this.current_floor == this.requests[0].to_floor) {
+        } else if (this.direction != 0 && ((!this.occupied && this.current_floor == this.requests[0].from_floor) || (this.occupied && this.current_floor == this.requests[0].to_floor))) {
             this.direction = 0;
+            this.log('stop at ' + this.current_floor)
 
         // if moving and not reached target floor, move
         } else if (this.direction != 0) {
             this.current_floor += this.direction;
-
-        // if not moving and not occupied and at from_floor, open doors + become occupied
-        } else if (this.direction == 0 && !this.occupied && this.requests.length && this.current_floor == this.requests[0].from_floor) {
-            this.door_open = 1;
-            this.occupied = 1;
-
-        // if not moving and occupied and at to_floor, open doors + become occupied
-        } else if (this.direction == 0 && this.occupied && this.current_floor == this.requests[0].to_floor) {
-            this.door_open = 1;
-            this.occupied = 0;
+            this.log('moving ' + (this.direction > 0 ? 'up' : 'down'));
 
         // if doors open, close doors
         } else if (this.door_open) {
             this.door_open = 0;
+            this.log('close doors');
+        } else {
+            //this.log('do nothing');
         }
+    }
+
+    log(msg) {
+        console.log('elevator-' + this.id + ' at ' + this.current_floor + ': ' + msg);
     }
 }
 
 var controller = new ElevatorController(10, 3);
 controller.request(3, 5);
-controller.tick();
-console.log(controller.elevators);
+controller.request(4, 6);
+for (var i = 0; i < 100; ++i) {
+    controller.tick();
+}

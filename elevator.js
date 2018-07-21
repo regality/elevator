@@ -69,29 +69,37 @@ class Elevator {
         this.current_floor = 1;
         this.requests = [];
         this.door_open = 0;
-        this.occupied = 0;
         this.direction = 0;
         this.trips = 0;
     }
 
+    occupied() {
+        return this.requests.some(request => request.picked_up);
+    }
+
     tick() {
+        var from_floors = this.requests.filter(request => !request.picked_up).map(request => request.from_floor);
+        var to_floors = this.requests.map(request => request.to_floor);
+
+        // if doors open, close doors
+        if (this.door_open) {
+            this.door_open = 0;
+            this.log('close doors');
+
         // if not moving and not occupied and at from_floor, open doors + become occupied
-        if (this.direction == 0 && !this.occupied && this.requests.length && this.current_floor == this.requests[0].from_floor) {
+        } else if (this.direction == 0 && !this.occupied() && from_floors.indexOf(this.current_floor) != -1) {
             this.door_open = 1;
-            this.occupied = 1;
-            this.log('pick up passengers at ' + this.current_floor);
+            this.log('open doors');
 
         // if not moving and occupied and at to_floor, open doors + become unoccupied
-        } else if (this.direction == 0 && this.occupied && this.current_floor == this.requests[0].to_floor) {
+        } else if (this.direction == 0 && this.occupied() && (to_floors.indexOf(this.current_floor) != -1 || from_floors.indexOf(this.current_floor) != -1)) {
             this.door_open = 1;
-            this.occupied = 0;
-            this.log('drop off passengers at ' + this.current_floor);
-            this.requests.shift();
+            this.log('open doors');
 
         // if not moving and target floor, start
         } else if (this.direction == 0 && this.requests.length) {
             var request = this.requests[0];
-            var target_floor = this.occupied ? this.requests[0].to_floor : this.requests[0].from_floor;
+            var target_floor = this.occupied() ? this.requests[0].to_floor : this.requests[0].from_floor;
             if (target_floor > this.current_floor) {
                 this.direction = 1;
                 this.log('start moving up')
@@ -101,7 +109,7 @@ class Elevator {
             }
 
         // if moving and reached target floor, stop
-        } else if (this.direction != 0 && ((!this.occupied && this.current_floor == this.requests[0].from_floor) || (this.occupied && this.current_floor == this.requests[0].to_floor))) {
+        } else if (this.direction != 0 && (from_floors.indexOf(this.current_floor) != -1 || to_floors.indexOf(this.current_floor) != -1)) {
             this.direction = 0;
             this.log('stop at ' + this.current_floor)
 
@@ -110,12 +118,23 @@ class Elevator {
             this.current_floor += this.direction;
             this.log('moving ' + (this.direction > 0 ? 'up' : 'down'));
 
-        // if doors open, close doors
-        } else if (this.door_open) {
-            this.door_open = 0;
-            this.log('close doors');
         } else {
             //this.log('do nothing');
+        }
+
+        if (this.door_open) {
+            this.requests.forEach(request => {
+                if (!request.picked_up && request.from_floor == this.current_floor) {
+                    request.picked_up = 1;
+                    this.log('picked up passengers at ' + this.current_floor);
+                }
+                if (request.picked_up && request.to_floor == this.current_floor) {
+                    request.dropped_off = 1;
+                    this.log('dropped off up passengers at ' + this.current_floor);
+                }
+            });
+
+            this.requests = this.requests.filter(request => !request.dropped_off);
         }
     }
 
@@ -127,6 +146,8 @@ class Elevator {
 var controller = new ElevatorController(10, 3);
 controller.request(3, 5);
 controller.request(4, 6);
-for (var i = 0; i < 100; ++i) {
+for (var i = 0; i < 20; ++i) {
+    console.log('');
     controller.tick();
+    //console.log(controller.elevators[0]);
 }

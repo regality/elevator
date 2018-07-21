@@ -21,13 +21,15 @@ class ElevatorController {
         this.queue.forEach((request) => {
             var best_elevator = null;
             // find stopped elevator on current floor
-            this.elevators.forEach(elevator => {
+            var elevators = this.elevators.filter(elevator => !elevator.in_maintenance);
+
+            elevators.forEach(elevator => {
                 if (elevator.direction == 0 && elevator.current_floor == request.from_floor) {
                     best_elevator = elevator;
                 }
             });
             if (!best_elevator) {
-                this.elevators.forEach(elevator => {
+                elevators.forEach(elevator => {
                     if (elevator.direction != 0 &&
                         elevator.requests.length &&
                         (
@@ -40,7 +42,7 @@ class ElevatorController {
                 });
             }
             if (!best_elevator) {
-                this.elevators.forEach(elevator => {
+                elevators.forEach(elevator => {
                     if (elevator.direction != 0) return;
                     if (!best_elevator) return best_elevator = elevator;
                     if (Math.abs(elevator.current_floor - request.from_floor) < Math.abs(best_elevator.current_floor - request.from_floor)) {
@@ -49,7 +51,7 @@ class ElevatorController {
                 });
             }
             if (best_elevator) {
-                best_elevator.requests.push(request);
+                best_elevator.dispatch(request);
                 request.assigned = true;
             }
         });
@@ -71,6 +73,20 @@ class Elevator {
         this.door_open = 0;
         this.direction = 0;
         this.trips = 0;
+        this.in_maintenance = 0;
+    }
+
+    dispatch(request) {
+        var already_booked = this.requests.some(existing_request => {
+            return existing_request.from_floor == request.from_floor && existing_request.to_floor == request.to_floor;
+        });
+        if (already_booked) return;
+        this.trips += 1;
+        this.requests.push(request)
+        if (this.trips >= 100) {
+            this.in_maintenance = 100; // assume 100 ticks are needed to service an elevator
+            this.log('maintenance needed');
+        }
     }
 
     occupied() {
@@ -78,8 +94,18 @@ class Elevator {
     }
 
     tick() {
+        // if we have no requests assigned, and we need to service the elevator, don't do anything
+        if (!this.requests.length && this.in_maintenance > 0) {
+            this.log('servicing');
+            this.in_maintenance -= 1;
+            if (this.in_maintenance == 0) {
+                this.trips = 0;
+            }
+            return;
+        }
+
         var from_floors = this.requests.filter(request => !request.picked_up).map(request => request.from_floor);
-        var to_floors = this.requests.map(request => request.to_floor);
+        var to_floors   = this.requests.filter(request =>  request.picked_up).map(request => request.to_floor);
 
         // if doors open, close doors
         if (this.door_open) {
@@ -98,7 +124,6 @@ class Elevator {
 
         // if not moving and target floor, start
         } else if (this.direction == 0 && this.requests.length) {
-            var request = this.requests[0];
             var target_floor = this.occupied() ? this.requests[0].to_floor : this.requests[0].from_floor;
             if (target_floor > this.current_floor) {
                 this.direction = 1;
@@ -144,10 +169,9 @@ class Elevator {
 }
 
 var controller = new ElevatorController(10, 3);
-controller.request(3, 5);
-controller.request(4, 6);
-for (var i = 0; i < 20; ++i) {
+for (var i = 0; i < 200; ++i) {
+    controller.request(3, 5);
+    controller.request(4, 6);
     console.log('');
     controller.tick();
-    //console.log(controller.elevators[0]);
 }
